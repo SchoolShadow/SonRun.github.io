@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SonRun</title>
+  <style>
+    body { margin:0; overflow:hidden; font-family:Arial; background:#000; color:white; }
+    #hud { position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; gap:20px; z-index:10; }
+    #hint { position:absolute; top:70px; left:50%; transform:translateX(-50%); font-size:12px; opacity:0.7; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="score">Score: 0</div>
+  <div id="coins">Coins: 0</div>
+  <div id="skin">Skin: TRIPLE T</div>
+  <div id="bg">BG: City</div>
+</div>
+<div id="hint">Arrow keys or WASD to move | 1-3 skins | B changes background</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const lanes = [canvas.width/3, canvas.width/2, canvas.width*2/3];
+
+let player = {
+  lane:1,
+  y:canvas.height-140,
+  size:50,
+  frame:0
+};
+
+const skins = [
+  {name:"TRIPLE T", color:"#00ffff"},
+  {name:"SHADOW T", color:"#ff00ff"},
+  {name:"GOLD T", color:"gold"}
+];
+let skinIndex = 0;
+
+const backgrounds = ["#0a0a0a", "#001a33", "#1a0000"];
+let bgIndex = 0;
+
+let obstacles = [];
+let coins = [];
+let score = 0;
+let coinCount = 0;
+let speed = 6;
+let gameOver = false;
+let spawnCooldown = 0;
+
+function spawnObstacle(){
+  if(spawnCooldown>0) return;
+  let safe = Math.floor(Math.random()*3);
+  let lanesArr = [0,1,2].filter(l=>l!==safe);
+  obstacles.push({lane:lanesArr[0], y:-80, size:50});
+  if(Math.random()>0.6){
+    obstacles.push({lane:lanesArr[1], y:-160, size:50});
+  }
+  spawnCooldown = 25;
+}
+
+function spawnCoin(){
+  coins.push({lane:Math.floor(Math.random()*3), y:-60});
+}
+
+function drawBackground(){
+  ctx.fillStyle = backgrounds[bgIndex];
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  for(let i=0;i<20;i++){
+    ctx.fillRect(canvas.width/2-2, (i*80 + (score*speed)%80), 4, 40);
+  }
+}
+
+function drawPlayer(){
+  let skin = skins[skinIndex];
+  let legOffset = Math.sin(player.frame)*10;
+
+  ctx.fillStyle = skin.color;
+  ctx.fillRect(lanes[player.lane]-25, player.y, player.size, player.size);
+
+  ctx.fillStyle = "white";
+  ctx.fillRect(lanes[player.lane]-20, player.y+player.size, 10, 15 + legOffset);
+  ctx.fillRect(lanes[player.lane]+10, player.y+player.size, 10, 15 - legOffset);
+
+  ctx.fillStyle="white";
+  ctx.font="10px Arial";
+  ctx.fillText(skin.name, lanes[player.lane]-25, player.y-10);
+
+  player.frame += 0.2;
+}
+
+function drawObstacles(){
+  ctx.fillStyle="red";
+  obstacles.forEach(o=>{
+    ctx.fillRect(lanes[o.lane]-25, o.y, o.size, o.size);
+  });
+}
+
+function drawCoins(){
+  ctx.fillStyle="gold";
+  coins.forEach(c=>{
+    ctx.beginPath();
+    ctx.arc(lanes[c.lane], c.y, 10, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function update(){
+  obstacles.forEach(o=>o.y+=speed);
+  coins.forEach(c=>c.y+=speed);
+
+  obstacles.forEach(o=>{
+    if(o.lane===player.lane && Math.abs(o.y-player.y)<40){
+      gameOver=true;
+    }
+  });
+
+  coins.forEach((c,i)=>{
+    if(c.lane===player.lane && Math.abs(c.y-player.y)<40){
+      coinCount++;
+      coins.splice(i,1);
+    }
+  });
+
+  obstacles = obstacles.filter(o=>o.y<canvas.height+50);
+  coins = coins.filter(c=>c.y<canvas.height+50);
+
+  if(spawnCooldown>0) spawnCooldown--;
+}
+
+function loop(){
+  if(gameOver){
+    ctx.fillStyle="white";
+    ctx.font="40px Arial";
+    ctx.fillText("YOU GOT CAUGHT! PRESS R TO RESTART", canvas.width/2-260, canvas.height/2);
+    return;
+  }
+
+  drawBackground();
+  drawPlayer();
+  drawObstacles();
+  drawCoins();
+  update();
+
+  score++;
+  document.getElementById("score").textContent="Score: "+score;
+  document.getElementById("coins").textContent="Coins: "+coinCount;
+
+  if(Math.random()<0.03) spawnObstacle();
+  if(Math.random()<0.02) spawnCoin();
+
+  requestAnimationFrame(loop);
+}
+
+function moveLeft(){ if(player.lane>0) player.lane--; }
+function moveRight(){ if(player.lane<2) player.lane++; }
+
+window.addEventListener("keydown",(e)=>{
+  const k = e.key.toLowerCase();
+
+  // movement (ARROWS + WASD)
+  if(k==="arrowleft" || k==="a") moveLeft();
+  if(k==="arrowright" || k==="d") moveRight();
+
+  // skins
+  if(k==="1") skinIndex=0;
+  if(k==="2") skinIndex=1;
+  if(k==="3") skinIndex=2;
+
+  // background
+  if(k==="b") bgIndex=(bgIndex+1)%backgrounds.length;
+
+  // restart (NO refresh needed)
+  if(k==="r" && gameOver){
+    obstacles=[];
+    coins=[];
+    score=0;
+    coinCount=0;
+    gameOver=false;
+    loop();
+  }
+});
+
+loop();
+</script>
+
+</body>
+</html>
